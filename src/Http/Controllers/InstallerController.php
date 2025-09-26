@@ -28,22 +28,32 @@ class InstallerController extends Controller
     public function database(Request $request)
     {
         $data = $request->validate([
-            'db_host' => 'required',
-            'db_port' => 'required',
-            'db_name' => 'required',
-            'db_user' => 'required',
-            'db_pass' => 'nullable',
+            'db_host' => 'nullable|string',
+            'db_port' => 'nullable|string',
+            'db_name' => 'required|string',
+            'db_user' => 'nullable|string',
+            'db_pass' => 'nullable|string',
         ]);
+
+        // ডিফল্ট সেটিংস যদি user input না দেয়
+        $dbHost = $data['db_host'] ?? '127.0.0.1';
+        $dbPort = $data['db_port'] ?? '3306';
+        $dbName = $data['db_name'];
+        $dbUser = $data['db_user'] ?? 'root';
+        $dbPass = $data['db_pass'] ?? '';
 
         $this->setEnv([
-            'DB_HOST' => $data['db_host'],
-            'DB_PORT' => $data['db_port'],
-            'DB_DATABASE' => $data['db_name'],
-            'DB_USERNAME' => $data['db_user'],
-            'DB_PASSWORD' => $data['db_pass'],
+            'DB_CONNECTION' => 'mysql',
+            'DB_HOST' => $dbHost,
+            'DB_PORT' => $dbPort,
+            'DB_DATABASE' => $dbName,
+            'DB_USERNAME' => $dbUser,
+            'DB_PASSWORD' => $dbPass,
         ]);
 
+        // Config refresh এবং migration
         Artisan::call('config:clear');
+        Artisan::call('cache:clear');
         Artisan::call('key:generate', ['--force' => true]);
         Artisan::call('migrate', ['--force' => true]);
 

@@ -18,7 +18,7 @@
 <form action="{{ route('install.database') }}" method="post" class="space-y-4">
     @csrf
     <h3 class="text-lg font-semibold">Database Configuration</h3>
-    <input type="text" name="db_host" placeholder="DB Host" class="border p-2 w-full" required>
+    <input type="text" name="db_host" placeholder="DB Host" class="border p-2 w-full" value="127.0.0.1" required>
     <input type="text" name="db_port" placeholder="DB Port" value="3306" class="border p-2 w-full" required>
     <input type="text" name="db_name" placeholder="Database Name" class="border p-2 w-full" required>
     <input type="text" name="db_user" placeholder="Database User" class="border p-2 w-full" required>
