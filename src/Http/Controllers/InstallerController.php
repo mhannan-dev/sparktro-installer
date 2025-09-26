@@ -21,9 +21,8 @@ class InstallerController extends Controller
             'Writable storage/' => is_writable(storage_path()),
             'Writable bootstrap/cache/' => is_writable(base_path('bootstrap/cache')),
         ];
-
         return view('installer::installer.requirements', compact('requirements'));
-        
+
     }
 
     public function database(Request $request)

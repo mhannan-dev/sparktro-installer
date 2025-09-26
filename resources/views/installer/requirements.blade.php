@@ -1,4 +1,4 @@
-@extends('installer::layout')
+@extends('installer::installer.layout')
 
 @section('content')
 <h2 class="text-xl font-semibold mb-4">System Requirements</h2>
