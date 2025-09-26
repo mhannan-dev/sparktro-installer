@@ -12,7 +12,7 @@ class SparkTroInstallerServiceProvider extends ServiceProvider
         $this->loadRoutesFrom(__DIR__ . '/../routes/web.php');
 
         // Load package views with proper namespace
-        $this->loadViewsFrom(__DIR__ . '/../resources/views', 'sparktro_installer');
+        $this->loadViewsFrom(__DIR__.'/../resources/views', 'installer');
     }
 
     public function register()

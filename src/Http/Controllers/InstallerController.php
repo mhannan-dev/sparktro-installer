@@ -23,6 +23,7 @@ class InstallerController extends Controller
         ];
 
         return view('installer::installer.requirements', compact('requirements'));
+        
     }
 
     public function database(Request $request)
