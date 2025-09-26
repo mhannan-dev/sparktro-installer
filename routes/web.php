@@ -1,7 +1,5 @@
 <?php
-
 use Sparktro\Installer\Http\Controllers\InstallerController;
-
 
 Route::prefix('install')->group(function () {
     Route::get('/', [InstallerController::class, 'requirements'])->name('install.requirements');

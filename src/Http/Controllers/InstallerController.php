@@ -29,17 +29,16 @@ class InstallerController extends Controller
     {
         $data = $request->validate([
             'db_host' => 'nullable|string',
-            'db_port' => 'nullable|string',
+            'db_port' => 'nullable|numeric',
             'db_name' => 'required|string',
             'db_user' => 'nullable|string',
             'db_pass' => 'nullable|string',
         ]);
 
-        // ডিফল্ট সেটিংস যদি user input না দেয়
-        $dbHost = $data['db_host'] ?? '127.0.0.1';
-        $dbPort = $data['db_port'] ?? '3306';
+        $dbHost = $data['db_host'] ?? "127.0.0.1";
+        $dbPort = $data['db_port'] ?? 3306;
         $dbName = $data['db_name'];
-        $dbUser = $data['db_user'] ?? 'root';
+        $dbUser = $data['db_user'] ?? "root";
         $dbPass = $data['db_pass'] ?? '';
 
         $this->setEnv([
@@ -59,6 +58,7 @@ class InstallerController extends Controller
 
         return redirect()->route('install.admin.form');
     }
+
 
     public function adminForm()
     {
@@ -110,7 +110,6 @@ class InstallerController extends Controller
                 $content .= "\n$replacement";
             }
         }
-
         File::put($path, $content);
     }
 }
