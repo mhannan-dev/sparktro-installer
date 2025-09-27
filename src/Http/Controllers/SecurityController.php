@@ -144,7 +144,7 @@ class SecurityController extends Controller
 
         $appUrl = url('/syslogin');
 
-        return view('installer::installer.finish', compact('appUrl')); // resources/views/installer/finish.blade.php
+        return view('installer::installer.finish', compact('appUrl'));
     }
 
     /**

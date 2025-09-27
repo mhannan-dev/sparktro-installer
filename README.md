@@ -43,7 +43,7 @@ The package supports **Laravel auto-discovery**, so the `InstallerServiceProvide
 During installation, the package will:
 
 - Automatically update your `.env` file with the database credentials you provide.
-- Set `APP_INSTALLED=true` after the installation is completed.
+- Set `APP_SECURITY=true` after the installation is completed.
 
 ---
 
