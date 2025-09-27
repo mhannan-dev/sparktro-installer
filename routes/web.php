@@ -1,4 +1,5 @@
 <?php
+
 use Sparktro\Installer\Http\Controllers\SecurityController;
 
 Route::prefix('install')->group(function () {
@@ -8,16 +9,3 @@ Route::prefix('install')->group(function () {
     Route::post('/admin', [SecurityController::class, 'adminStore'])->name('install.admin.store');
     Route::get('/finish', [SecurityController::class, 'finish'])->name('install.finish');
 });
-
-
-Route::prefix('install')
-    ->name('install.')
-    ->controller(SecurityController::class)
-    ->group(function () {
-        Route::get('/', 'requirements')->name('requirements');
-        Route::post('/database', 'database')->name('database');
-        Route::get('/admin', 'adminForm')->name('admin.form');
-        Route::post('/admin', 'adminStore')->name('admin.store');
-        Route::get('/finish', 'finish')->name('finish');
-    });
-
