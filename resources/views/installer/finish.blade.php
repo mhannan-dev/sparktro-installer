@@ -1,16 +1,3 @@
-{{-- @extends('installer::installer.layout')
-
-@section('content')
-<h2 class="mb-4 text-xl font-semibold">Installation Completed 🎉</h2>
-<p>Your system is ready to use.</p>
-
-<div class="mt-6">
-    <a href="{{ $appUrl }}" class="px-4 py-2 text-white bg-blue-600 rounded">Go to Application</a>
-</div>
-
-@endsection --}}
-
-
 @extends('installer::installer.layout')
 
 @section('content')

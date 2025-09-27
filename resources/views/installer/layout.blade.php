@@ -1,19 +1,3 @@
-{{-- <!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>Installer</title>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/tailwindcss/dist/tailwind.min.css">
-</head>
-<body class="text-gray-800 bg-gray-100">
-    <div class="p-6 mx-auto mt-10 max-w-2xl bg-white rounded shadow-md">
-        <h1 class="mb-6 text-2xl font-bold">Installation Wizard</h1>
-        @yield('content')
-    </div>
-</body>
-</html> --}}
-
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
