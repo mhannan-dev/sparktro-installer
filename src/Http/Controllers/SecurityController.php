@@ -29,7 +29,7 @@ class SecurityController extends Controller
         ];
 
         // direct project view, installer folder under resources/views
-        return view('installer.requirements', compact('requirements'));
+        return view('installer::installer.requirements', compact('requirements'));
     }
 
     /**
@@ -111,7 +111,7 @@ class SecurityController extends Controller
      */
     public function adminForm()
     {
-        return view('installer.admin'); // resources/views/installer/admin.blade.php
+        return view('installer::installer.admin'); // resources/views/installer/admin.blade.php
     }
 
     /**
@@ -144,7 +144,7 @@ class SecurityController extends Controller
 
         $appUrl = url('/syslogin');
 
-        return view('installer.finish', compact('appUrl')); // resources/views/installer/finish.blade.php
+        return view('installer::installer.finish', compact('appUrl')); // resources/views/installer/finish.blade.php
     }
 
     /**
