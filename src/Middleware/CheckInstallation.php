@@ -9,14 +9,14 @@ class CheckInstallation
 {
     public function handle(Request $request, Closure $next)
     {
-        $installed = env('APP_SECURITY', false);
+        $appSecurity = env('APP_SECURITY', 'false');
 
-        if (!$installed && ! $request->is('install*')) {
-            return redirect('/install');
+        if ($appSecurity === true && $request->is('install*')) {
+            return redirect('syslogin');
         }
 
-        if ($installed && $request->is('install*')) {
-            return redirect('/syslogin'); // or your default login page
+        if ($appSecurity !== true && $request->is('install*')) {
+            return $next($request);
         }
 
         return $next($request);
