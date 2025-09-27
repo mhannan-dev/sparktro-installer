@@ -8,6 +8,9 @@ use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\DB;
+use Exception;
+use PDO;
 
 class SecurityController extends Controller
 {
@@ -41,22 +44,67 @@ class SecurityController extends Controller
             'db_pass' => 'nullable|string',
         ]);
 
+        // Normalize values
+        $host = $data['db_host'] ?? '127.0.0.1';
+        $port = $data['db_port'] ?? 3306;
+        $name = $data['db_name'];
+        $user = $data['db_user'] ?? 'root';
+        $pass = $data['db_pass'] ?? '';
+
+        // 1) Ensure .env exists and update it
         $this->setEnv([
             'DB_CONNECTION' => 'mysql',
-            'DB_HOST' => $data['db_host'] ?? '127.0.0.1',
-            'DB_PORT' => $data['db_port'] ?? 3306,
-            'DB_DATABASE' => $data['db_name'],
-            'DB_USERNAME' => $data['db_user'] ?? 'root',
-            'DB_PASSWORD' => $data['db_pass'] ?? '',
+            'DB_HOST' => $host,
+            'DB_PORT' => $port,
+            'DB_DATABASE' => $name,
+            'DB_USERNAME' => $user,
+            'DB_PASSWORD' => $pass,
         ]);
 
-        // Refresh configuration & run migrations
-        Artisan::call('config:clear');
-        Artisan::call('cache:clear');
-        Artisan::call('key:generate', ['--force' => true]);
-        Artisan::call('migrate', ['--force' => true]);
+        // 2) Update runtime config so Artisan::call('migrate') uses new settings
+        config([
+            'database.default' => 'mysql',
+            'database.connections.mysql.host' => $host,
+            'database.connections.mysql.port' => $port,
+            'database.connections.mysql.database' => $name,
+            'database.connections.mysql.username' => $user,
+            'database.connections.mysql.password' => $pass,
+        ]);
 
-        return redirect()->route('install.admin.form');
+        try {
+            // Use PDO to connect to MySQL server (without selecting a DB)
+            $dsn = "mysql:host={$host};port={$port};charset=utf8mb4";
+            $pdo = new PDO($dsn, $user, $pass, [
+                PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+                PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+            ]);
+
+            $quotedDb = str_replace('`', '``', $name); 
+            $pdo->exec("CREATE DATABASE IF NOT EXISTS `{$quotedDb}` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;");
+        } catch (Exception $e) {
+            return redirect()->back()->withInput()->withErrors([
+                'db' => 'Could not connect to the database server: ' . $e->getMessage()
+            ]);
+        }
+
+        // 4) Purge and reconnect the DB connection so Laravel uses new DB
+        try {
+            DB::purge('mysql');
+            DB::reconnect('mysql');
+
+            Artisan::call('config:clear');
+            Artisan::call('cache:clear');
+            Artisan::call('key:generate', ['--force' => true]);
+
+            // 5) Run migrations
+            Artisan::call('migrate', ['--force' => true]);
+        } catch (Exception $e) {
+            return redirect()->back()->withInput()->withErrors([
+                'migrate' => 'Migration failed: ' . $e->getMessage()
+            ]);
+        }
+
+        return redirect()->route('install.admin.form')->with('success', 'Database configured and migrated successfully.');
     }
 
     /**
@@ -102,27 +150,37 @@ class SecurityController extends Controller
 
     /**
      * Update .env file with given values.
+     *
+     * - Keeps existing entries, replaces keys when present, otherwise appends.
+     * - Handles empty values (writes without surrounding quotes).
      */
     private function setEnv(array $values)
     {
         $path = base_path('.env');
 
         if (!File::exists($path)) {
-            File::put($path, File::get(base_path('.env.example')));
+            // copy example if .env not present
+            $example = base_path('.env.example');
+            if (File::exists($example)) {
+                File::put($path, File::get($example));
+            } else {
+                File::put($path, '');
+            }
         }
 
         $content = File::get($path);
 
         foreach ($values as $key => $value) {
-            $escapedValue = $value === '' ? '' : "\"{$value}\"";
+            $strValue = $value === '' ? '' : (string) $value;
+            $replacement = $key . '=' . ($strValue === '' ? '' : "\"{$strValue}\"");
 
-            $pattern = "/^{$key}=.*$/m";
-            $replacement = "{$key}={$escapedValue}";
+            $escapedKey = preg_quote($key, '/');
+            $pattern = "/^{$escapedKey}=.*$/m";
 
             if (preg_match($pattern, $content)) {
                 $content = preg_replace($pattern, $replacement, $content);
             } else {
-                $content .= "\n{$replacement}";
+                $content .= PHP_EOL . $replacement;
             }
         }
 
