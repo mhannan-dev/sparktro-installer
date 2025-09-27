@@ -9,22 +9,28 @@ use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Hash;
 
-class InstallerController extends Controller
+class SecurityController extends Controller
 {
+    /**
+     * Check and display system requirements.
+     */
     public function requirements()
     {
         $requirements = [
-            'PHP >= 8.1' => version_compare(PHP_VERSION, '8.1.0', '>='),
+            'PHP >= 8.2' => version_compare(PHP_VERSION, '8.2.0', '>='),
             'PDO' => extension_loaded('pdo'),
             'Mbstring' => extension_loaded('mbstring'),
             'OpenSSL' => extension_loaded('openssl'),
             'Writable storage/' => is_writable(storage_path()),
             'Writable bootstrap/cache/' => is_writable(base_path('bootstrap/cache')),
         ];
-        return view('installer::installer.requirements', compact('requirements'));
 
+        return view('installer::installer.requirements', compact('requirements'));
     }
 
+    /**
+     * Handle database configuration and run migrations.
+     */
     public function database(Request $request)
     {
         $data = $request->validate([
@@ -35,22 +41,16 @@ class InstallerController extends Controller
             'db_pass' => 'nullable|string',
         ]);
 
-        $dbHost = $data['db_host'] ?? "127.0.0.1";
-        $dbPort = $data['db_port'] ?? 3306;
-        $dbName = $data['db_name'];
-        $dbUser = $data['db_user'] ?? "root";
-        $dbPass = $data['db_pass'] ?? '';
-
         $this->setEnv([
             'DB_CONNECTION' => 'mysql',
-            'DB_HOST' => $dbHost,
-            'DB_PORT' => $dbPort,
-            'DB_DATABASE' => $dbName,
-            'DB_USERNAME' => $dbUser,
-            'DB_PASSWORD' => $dbPass,
+            'DB_HOST' => $data['db_host'] ?? '127.0.0.1',
+            'DB_PORT' => $data['db_port'] ?? 3306,
+            'DB_DATABASE' => $data['db_name'],
+            'DB_USERNAME' => $data['db_user'] ?? 'root',
+            'DB_PASSWORD' => $data['db_pass'] ?? '',
         ]);
 
-        // Config refresh এবং migration
+        // Refresh configuration & run migrations
         Artisan::call('config:clear');
         Artisan::call('cache:clear');
         Artisan::call('key:generate', ['--force' => true]);
@@ -59,12 +59,17 @@ class InstallerController extends Controller
         return redirect()->route('install.admin.form');
     }
 
-
+    /**
+     * Show admin account creation form.
+     */
     public function adminForm()
     {
         return view('installer::installer.admin');
     }
 
+    /**
+     * Store admin user credentials.
+     */
     public function adminStore(Request $request)
     {
         $data = $request->validate([
@@ -83,14 +88,21 @@ class InstallerController extends Controller
         return redirect()->route('install.finish');
     }
 
+    /**
+     * Mark installation as complete.
+     */
     public function finish()
     {
-        $this->setEnv(['APP_INSTALLED' => 'true']);
+        $this->setEnv(['APP_SECURITY' => 'true']);
+
         $appUrl = url('/syslogin');
 
         return view('installer::installer.finish', compact('appUrl'));
     }
 
+    /**
+     * Update .env file with given values.
+     */
     private function setEnv(array $values)
     {
         $path = base_path('.env');
@@ -102,14 +114,18 @@ class InstallerController extends Controller
         $content = File::get($path);
 
         foreach ($values as $key => $value) {
+            $escapedValue = $value === '' ? '' : "\"{$value}\"";
+
             $pattern = "/^{$key}=.*$/m";
-            $replacement = $key.'="'.$value.'"';
+            $replacement = "{$key}={$escapedValue}";
+
             if (preg_match($pattern, $content)) {
                 $content = preg_replace($pattern, $replacement, $content);
             } else {
-                $content .= "\n$replacement";
+                $content .= "\n{$replacement}";
             }
         }
+
         File::put($path, $content);
     }
 }
