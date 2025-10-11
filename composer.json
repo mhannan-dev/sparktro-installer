@@ -1,0 +1,43 @@
+{
+  "authors": [
+    {
+      "email": "mdhannan.info@gmail.com",
+      "name": "Muhammad Hannan"
+    }
+  ],
+  "autoload": {
+    "psr-4": {
+      "Sparktro\\Installer\\": "src/"
+    }
+  },
+  "description": "Sparktro Laravel App Installer Package",
+  "extra": {
+    "laravel": {
+      "providers": [
+        "Sparktro\\Installer\\SparkTroInstallerServiceProvider"
+      ]
+    }
+  },
+  "homepage": "https://github.com/mhannan-dev/sparktro-installer",
+  "keywords": [
+    "laravel",
+    "installer",
+    "setup",
+    "sparktro"
+  ],
+  "license": "MIT",
+  "minimum-stability": "dev",
+  "name": "sparktro/installer",
+  "prefer-stable": true,
+  "repositories": [
+    {
+      "type": "path",
+      "url": "./sparktro-installer"
+    }
+  ],
+  "require": {
+    "illuminate/support": "^12.0",
+    "php": "^8.2"
+  },
+  "type": "library"
+}
