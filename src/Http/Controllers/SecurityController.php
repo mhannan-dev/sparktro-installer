@@ -158,7 +158,7 @@ class SecurityController extends Controller
         $this->setEnv(['APP_SECURITY' => 'true']);
 
         $appUrl = url('/');
-        Log::info("Installer: Installation complete. Login URL: {$appUrl}");
+        Log::info("Installation complete");
 
         return view('installer::installer.finish', compact('appUrl'));
     }
