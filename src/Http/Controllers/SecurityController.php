@@ -97,7 +97,6 @@ class SecurityController extends Controller
 
     public function adminStore(Request $request)
     {
-        // Import SQL if exists
         $sqlPath = base_path('database/factories/application.sql');
         $this->importSqlFile($sqlPath);
 
