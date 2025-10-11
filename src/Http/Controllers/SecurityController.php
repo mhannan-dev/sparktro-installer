@@ -62,8 +62,8 @@ class SecurityController extends Controller
             'DB_DATABASE' => $name,
             'DB_USERNAME' => $user,
             'DB_PASSWORD' => $pass,
-            // 'SESSION_DRIVER' => 'database',
-            // 'CACHE_STORE' => 'database',
+            'SESSION_DRIVER' => 'database',
+            'CACHE_STORE' => 'database',
         ]);
 
         // Update runtime config
