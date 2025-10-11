@@ -27,14 +27,8 @@
   ],
   "license": "MIT",
   "minimum-stability": "dev",
-  "name": "sparktro/installer",
+  "name": "sparktro/ignite",
   "prefer-stable": true,
-  "repositories": [
-    {
-      "type": "path",
-      "url": "./sparktro-installer"
-    }
-  ],
   "require": {
     "illuminate/support": "^12.0",
     "php": "^8.2"
