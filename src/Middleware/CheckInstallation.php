@@ -7,19 +7,18 @@ use Illuminate\Http\Request;
 
 class CheckInstallation
 {
-    
     public function handle(Request $request, Closure $next)
     {
-        $appSecurity = filter_var(env('APP_SECURITY', false), FILTER_VALIDATE_BOOLEAN);
+        $isInstalled = filter_var(env('APP_INSTALLED', false), FILTER_VALIDATE_BOOLEAN);
 
-        if (!$appSecurity) {
-            if (!$request->is('install*')) {
-                return redirect()->route('install.requirements');
-            }
+        // If not installed, redirect to installer
+        if (!$isInstalled && !$request->is('install*') && !$request->is('_debugbar*')) {
+            return redirect()->route('install.welcome');
         }
 
-        if ($appSecurity && $request->is('install*')) {
-            return redirect('/');
+        // If installed, block installer access
+        if ($isInstalled && $request->is('install*')) {
+            return redirect('/')->with('info', 'Application is already installed.');
         }
 
         return $next($request);

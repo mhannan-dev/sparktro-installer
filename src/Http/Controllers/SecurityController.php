@@ -14,10 +14,15 @@ use Exception;
 
 class SecurityController extends Controller
 {
+    public function welcome()
+    {
+        $this->ensureStorageExists();
+        return view('installer::installer.welcome');
+    }
+
     public function requirements()
     {
-
-         $this->ensureStorageExists();
+        $this->ensureStorageExists();
         $requirements = [
             // PHP version
             'PHP >= 8.2' => version_compare(PHP_VERSION, '8.2.0', '>='),
@@ -26,18 +31,213 @@ class SecurityController extends Controller
             'PDO' => extension_loaded('pdo'),
             'Mbstring' => extension_loaded('mbstring'),
             'OpenSSL' => extension_loaded('openssl'),
+            'Ctype' => extension_loaded('ctype'),
+            'JSON' => extension_loaded('json'),
+            'BCMath' => extension_loaded('bcmath'),
+            'XML' => extension_loaded('xml'),
+            'Tokenizer' => extension_loaded('tokenizer'),
 
             // Writable directories
             'Writable storage/' => is_writable(storage_path()),
             'Writable storage/framework/' => is_writable(storage_path('framework')),
             'Writable storage/logs/' => is_writable(storage_path('logs')),
             'Writable bootstrap/cache/' => is_writable(base_path('bootstrap/cache')),
-            'Writable .env' => is_writable(base_path('.env')),
+            'Writable .env' => !file_exists(base_path('.env')) || is_writable(base_path('.env')),
         ];
-        return view('installer::installer.requirements', compact('requirements'));
+
+        $allRequirementsMet = !in_array(false, $requirements, true);
+        
+        return view('installer::installer.requirements', compact('requirements', 'allRequirementsMet'));
     }
 
-     protected function ensureStorageExists()
+    public function environment(Request $request)
+    {
+        if ($request->isMethod('post')) {
+            $data = $request->validate([
+                'app_name' => 'required|string|max:255',
+                'app_url' => 'required|url',
+                'db_host' => 'required|string',
+                'db_port' => 'required|numeric',
+                'db_name' => 'required|string',
+                'db_user' => 'required|string',
+                'db_pass' => 'nullable|string',
+            ]);
+
+            try {
+                $this->ensureEnv();
+                
+                // Set basic app configuration
+                $this->setEnv([
+                    'APP_NAME' => '"' . $data['app_name'] . '"',
+                    'APP_URL' => $data['app_url'],
+                    'APP_ENV' => 'production',
+                    'APP_DEBUG' => 'false'
+                ]);
+
+                return redirect()->route('install.database')->with('data', $data);
+            } catch (Exception $e) {
+                return redirect()->back()->with('error', $e->getMessage())->withInput();
+            }
+        }
+
+        return view('installer::installer.environment');
+    }
+
+    public function database(Request $request)
+    {
+        // Get data from session or request
+        $data = $request->session()->get('data') ?? $request->all();
+        
+        if (empty($data)) {
+            return redirect()->route('install.environment');
+        }
+
+        try {
+            // 🔧 Increase limits ONLY for installer
+            ini_set('max_execution_time', 300);
+            ini_set('memory_limit', '512M');
+
+            // 2️⃣ Generate APP_KEY
+            Artisan::call('key:generate', ['--force' => true]);
+
+            // Update .env with database credentials
+            Log::info("Installer: Updating .env with DB credentials");
+            $this->setEnv([
+                'DB_CONNECTION' => 'mysql',
+                'DB_HOST' => $data['db_host'],
+                'DB_PORT' => $data['db_port'] ?? 3306,
+                'DB_DATABASE' => $data['db_name'],
+                'DB_USERNAME' => $data['db_user'],
+                'DB_PASSWORD' => $data['db_pass'] ?? ''
+            ]);
+
+            // Update runtime config
+            config([
+                'database.default' => 'mysql',
+                'database.connections.mysql.host' => $data['db_host'],
+                'database.connections.mysql.port' => $data['db_port'] ?? 3306,
+                'database.connections.mysql.database' => $data['db_name'],
+                'database.connections.mysql.username' => $data['db_user'],
+                'database.connections.mysql.password' => $data['db_pass'] ?? '',
+            ]);
+
+            // 🔥 Critical: Refresh DB connection
+            DB::purge('mysql');
+            DB::reconnect('mysql');
+
+            // Test database connection
+            DB::connection()->getPdo();
+
+            // Clear caches
+            Artisan::call('config:clear');
+            Artisan::call('cache:clear');
+
+            Log::info('Installer: Database setup completed successfully.');
+            
+            // Check if we should import SQL or run migrations
+            $sqlPath = base_path('database/factories/application.sql');
+            if (File::exists($sqlPath)) {
+                return redirect()->route('install.import.database');
+            } else {
+                return redirect()->route('install.migrate');
+            }
+            
+        } catch (Exception $e) {
+            Log::error('Database setup failed: ' . $e->getMessage());
+            return redirect()->route('install.environment')
+                ->with('error', 'Database connection failed: ' . $e->getMessage())
+                ->withInput();
+        }
+    }
+
+    public function migrate()
+    {
+        try {
+            Artisan::call('migrate', ['--force' => true]);
+            Artisan::call('db:seed', ['--force' => true]);
+            
+            return redirect()->route('install.admin.form')
+                ->with('success', 'Migrations and seeders ran successfully.');
+        } catch (Exception $e) {
+            return redirect()->back()->with('error', 'Migration failed: ' . $e->getMessage());
+        }
+    }
+
+    public function importDatabase()
+    {
+        try {
+            $sqlPath = base_path('database/factories/application.sql');
+            if (!File::exists($sqlPath)) {
+                return redirect()->route('install.migrate');
+            }
+
+            $this->importSqlFile($sqlPath);
+            
+            return redirect()->route('install.admin.form')
+                ->with('success', 'Database imported successfully.');
+        } catch (Exception $e) {
+            return redirect()->back()->with('error', 'Database import failed: ' . $e->getMessage());
+        }
+    }
+
+    public function adminForm()
+    {
+        Log::info('Installer: Displaying admin user creation form.');
+        return view('installer::installer.admin');
+    }
+
+    public function adminStore(Request $request)
+    {
+        $data = $request->validate([
+            'name' => 'required|string|max:150',
+            'email' => 'required|email',
+            'password' => 'required|min:6|confirmed',
+        ]);
+
+        try {
+            // Update existing user or create new
+            $user = User::updateOrCreate(
+                ['email' => $data['email']],
+                [
+                    'name' => $data['name'],
+                    'role_id' => 1,
+                    'password' => Hash::make($data['password']),
+                    'email_verified_at' => now(),
+                ]
+            );
+
+            $this->setEnv([
+                'SESSION_DRIVER' => 'database',
+                'CACHE_STORE' => 'database',
+                'APP_DB_SYNC' => 'true'
+            ]);
+
+            Artisan::call('config:clear');
+            Artisan::call('cache:clear');
+            
+            return redirect()->route('install.finish')->with('success', 'Admin user created successfully.');
+        } catch (Exception $e) {
+            return redirect()->back()->withErrors(['admin' => 'Failed to create admin user: ' . $e->getMessage()])->withInput();
+        }
+    }
+
+    public function finish()
+    {
+        // Lock installer
+        $this->setEnv(['APP_INSTALLED' => 'true']);
+
+        $appUrl = url('/');
+        Log::info("Installer: Installation complete. Login URL: {$appUrl}");
+
+        // Final optimizations
+        Artisan::call('config:cache');
+        Artisan::call('route:cache');
+        Artisan::call('view:cache');
+
+        return view('installer::installer.finish', compact('appUrl'));
+    }
+
+    protected function ensureStorageExists()
     {
         $storagePaths = [
             storage_path('app/public/uploads'),
@@ -49,8 +249,8 @@ class SecurityController extends Controller
             storage_path('logs'),
             storage_path('pail'),
             base_path('bootstrap/cache'),
-            public_path('storage'), // public/storage
-            public_path('storage/uploads'), // optional
+            public_path('storage'),
+            public_path('storage/uploads'),
         ];
 
         foreach ($storagePaths as $path) {
@@ -58,14 +258,17 @@ class SecurityController extends Controller
                 File::makeDirectory($path, 0775, true);
             }
 
-            // .gitignore create
+            // Add .gitignore so empty folders can exist in zip
             $gitignore = $path . '/.gitignore';
             if (!File::exists($gitignore)) {
                 File::put($gitignore, "*\n!.gitignore\n");
             }
+
+            // Make sure folder is writable
+            @chmod($path, 0775);
         }
 
-        // Laravel log file নিশ্চিত করা
+        // Ensure laravel.log exists
         $logFile = storage_path('logs/laravel.log');
         if (!File::exists($logFile)) {
             File::put($logFile, '');
@@ -73,145 +276,11 @@ class SecurityController extends Controller
         chmod($logFile, 0666);
     }
 
-
-
-    public function database(Request $request)
-    {
-        // 🔧 Increase limits ONLY for installer
-        ini_set('max_execution_time', 300); // 5 minutes
-        ini_set('memory_limit', '512M');
-
-        $this->ensureEnv();
-
-        // 2️⃣ Generate APP_KEY
-        Artisan::call('key:generate');
-
-        // 3️⃣ Optional: clear caches
-        Artisan::call('config:clear');
-        Artisan::call('cache:clear');
-        Log::info("Installer: Env created");
-        $data = $request->validate([
-            'db_host' => 'required|string',
-            'db_port' => 'nullable|numeric',
-            'db_name' => 'required|string',
-            'db_user' => 'required|string',
-            'db_pass' => 'nullable|string',
-        ]);
-
-        $host = $data['db_host'];
-        $port = $data['db_port'] ?? 3306;
-        $name = $data['db_name'];
-        $user = $data['db_user'];
-        $pass = $data['db_pass'] ?? '';
-
-        // Update .env
-        Log::info("Installer: Updating .env with DB credentials");
-        $this->setEnv([
-            'DB_CONNECTION' => 'mysql',
-            'DB_HOST' => $host,
-            'DB_PORT' => $port,
-            'DB_DATABASE' => $name,
-            'DB_USERNAME' => $user,
-            'DB_PASSWORD' => $pass
-        ]);
-
-        // Update runtime config
-        config([
-            'database.default' => 'mysql',
-            'database.connections.mysql.host' => $host,
-            'database.connections.mysql.port' => $port,
-            'database.connections.mysql.database' => $name,
-            'database.connections.mysql.username' => $user,
-            'database.connections.mysql.password' => $pass,
-        ]);
-
-        // 🔥 Critical: Refresh DB connection
-        DB::purge('mysql');
-        DB::reconnect('mysql');
-
-        // Clear caches
-        Artisan::call('config:clear');
-        Artisan::call('cache:clear');
-
-        Log::info('Installer: Database setup completed successfully.');
-        return redirect()->route('install.admin.form')
-            ->with('success', 'Database configured and initial data imported successfully.');
-    }
-
-    public function adminForm()
-    {
-        Log::info('Installer: Displaying admin user creation form.');
-        return view('installer::installer.admin');
-    }
-
-    public function adminStore(Request $request)
-    {
-        // Import SQL if exists
-        $sqlPath = base_path('database/factories/application.sql');
-        $this->importSqlFile($sqlPath);
-
-        $data = $request->validate([
-            'name' => 'required|string|max:150',
-            'email' => 'required|email',
-            'password' => 'required|min:6|confirmed',
-        ]);
-
-        try {
-            // Update existing user or create new
-            $updateData = [
-                'name' => $data['name'],
-                'role_id' => 1,
-                'password' => Hash::make($data['password']),
-            ];
-
-            User::updateOrCreate(
-                ['email' => $data['email']],
-                $updateData
-            );
-
-            // Enable foreign key checks
-            // DB::statement('SET FOREIGN_KEY_CHECKS=1;');
-
-            Artisan::call('migrate', ['--force' => true]);
-
-            // Run seeders
-            Artisan::call('db:seed', ['--force' => true]);
-
-            $this->setEnv([
-                'SESSION_DRIVER' => 'database',
-                'CACHE_STORE' => 'database',
-            ]);
-
-
-            // Mark DB sync in .env
-            $this->setEnv(['APP_DB_SYNC' => 'true']);
-
-            Artisan::call('config:clear');
-            Artisan::call('cache:clear');
-            return redirect()->route('install.finish')->with('success', 'Admin user setup completed.');
-        } catch (Exception $e) {
-            return redirect()->back()->withErrors(['admin' => 'Failed to create admin user.']);
-        }
-    }
-
-    public function finish()
-    {
-        // Lock installer
-        $this->setEnv(['APP_SECURITY' => 'true']);
-
-        $appUrl = url('/');
-        Log::info("Installer: Installation complete. Login URL: {$appUrl}");
-
-        return view('installer::installer.finish', compact('appUrl'));
-    }
-
     private function setEnv(array $values)
     {
         $path = base_path('.env');
         if (!File::exists($path)) {
-            $example = base_path('.env.example');
-            File::put($path, File::exists($example) ? File::get($example) : '');
-            Log::info('Installer: Created .env file.');
+            $this->ensureEnv();
         }
 
         $content = File::get($path);
@@ -233,9 +302,6 @@ class SecurityController extends Controller
         Log::debug('Installer: .env updated.');
     }
 
-    /**
-     * Import SQL file line-by-line (memory efficient, no hang)
-     */
     private function importSqlFile(string $filePath)
     {
         if (!File::exists($filePath)) {
@@ -286,53 +352,6 @@ class SecurityController extends Controller
         Log::info('Installer: SQL file imported successfully (streamed).');
     }
 
-
-    public function importDatabase()
-    {
-        try {
-            DB::beginTransaction();
-
-            DB::statement('SET FOREIGN_KEY_CHECKS=0;');
-
-            // Get all tables
-            $tables = DB::select('SHOW TABLES');
-            $tables = array_map(fn($t) => array_values((array)$t)[0], $tables);
-
-            $excluded = ['users'];
-
-            foreach ($tables as $table) {
-                if (!in_array($table, $excluded)) {
-                    DB::table($table)->truncate();
-                }
-            }
-
-            // Enable foreign key checks
-            DB::statement('SET FOREIGN_KEY_CHECKS=1;');
-
-            Artisan::call('migrate', ['--force' => true]);
-
-            // Run seeders
-            Artisan::call('db:seed', ['--force' => true]);
-
-            // Mark DB sync in .env
-            $this->setEnv(['APP_DB_SYNC' => 'true']);
-
-            // Clear config & cache
-            Artisan::call('config:clear');
-            Artisan::call('cache:clear');
-
-            DB::commit();
-
-            return redirect()->back()->with('success', 'DB imported successfully!');
-        } catch (\Throwable $e) {
-            if (DB::transactionLevel() > 0) {
-                DB::rollBack();
-            }
-            return redirect()->back()->with('error', $e->getMessage());
-        }
-    }
-
-
     public function ensureEnv()
     {
         $envPath = base_path('.env');
@@ -353,8 +372,6 @@ class SecurityController extends Controller
         }
 
         // 2️⃣ Set correct permissions
-        $webUser = 'www-data'; // adjust if your web server user is different
-        @chmod($envPath, 0664); // writable by owner & group
-        @chown($envPath, $webUser);
+        @chmod($envPath, 0664);
     }
 }
