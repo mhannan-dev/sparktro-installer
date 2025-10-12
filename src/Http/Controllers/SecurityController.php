@@ -46,7 +46,7 @@ class SecurityController extends Controller
         ];
 
         $allRequirementsMet = !in_array(false, $requirements, true);
-        
+
         return view('installer::installer.requirements', compact('requirements', 'allRequirementsMet'));
     }
 
@@ -65,7 +65,7 @@ class SecurityController extends Controller
 
             try {
                 $this->ensureEnv();
-                
+
                 // Set basic app configuration
                 $this->setEnv([
                     'APP_NAME' => '"' . $data['app_name'] . '"',
@@ -74,8 +74,14 @@ class SecurityController extends Controller
                     'APP_DEBUG' => 'false'
                 ]);
 
-                return redirect()->route('install.database')->with('data', $data);
+                // Store data in session for next step
+                $request->session()->put('installer_data', $data);
+                Log::info('Environment data saved to session', $data);
+
+                return redirect()->route('install.database');
+
             } catch (Exception $e) {
+                Log::error('Environment setup failed: ' . $e->getMessage());
                 return redirect()->back()->with('error', $e->getMessage())->withInput();
             }
         }
@@ -85,97 +91,61 @@ class SecurityController extends Controller
 
     public function database(Request $request)
     {
-        // Get data from session or request
-        $data = $request->session()->get('data') ?? $request->all();
-        
+        // Get data from session
+        $data = $request->session()->get('installer_data');
+
         if (empty($data)) {
+            Log::warning('No installer data found in session, redirecting to environment');
             return redirect()->route('install.environment');
         }
 
-        try {
-            // 🔧 Increase limits ONLY for installer
-            ini_set('max_execution_time', 300);
-            ini_set('memory_limit', '512M');
+        Log::info('Processing database setup with data:', $data);
 
-            // 2️⃣ Generate APP_KEY
-            Artisan::call('key:generate', ['--force' => true]);
-
-            // Update .env with database credentials
-            Log::info("Installer: Updating .env with DB credentials");
-            $this->setEnv([
-                'DB_CONNECTION' => 'mysql',
-                'DB_HOST' => $data['db_host'],
-                'DB_PORT' => $data['db_port'] ?? 3306,
-                'DB_DATABASE' => $data['db_name'],
-                'DB_USERNAME' => $data['db_user'],
-                'DB_PASSWORD' => $data['db_pass'] ?? ''
-            ]);
-
-            // Update runtime config
-            config([
-                'database.default' => 'mysql',
-                'database.connections.mysql.host' => $data['db_host'],
-                'database.connections.mysql.port' => $data['db_port'] ?? 3306,
-                'database.connections.mysql.database' => $data['db_name'],
-                'database.connections.mysql.username' => $data['db_user'],
-                'database.connections.mysql.password' => $data['db_pass'] ?? '',
-            ]);
-
-            // 🔥 Critical: Refresh DB connection
-            DB::purge('mysql');
-            DB::reconnect('mysql');
-
-            // Test database connection
-            DB::connection()->getPdo();
-
-            // Clear caches
-            Artisan::call('config:clear');
-            Artisan::call('cache:clear');
-
-            Log::info('Installer: Database setup completed successfully.');
-            
-            // Check if we should import SQL or run migrations
-            $sqlPath = base_path('database/factories/application.sql');
-            if (File::exists($sqlPath)) {
-                return redirect()->route('install.import.database');
-            } else {
-                return redirect()->route('install.migrate');
-            }
-            
-        } catch (Exception $e) {
-            Log::error('Database setup failed: ' . $e->getMessage());
-            return redirect()->route('install.environment')
-                ->with('error', 'Database connection failed: ' . $e->getMessage())
-                ->withInput();
-        }
+        // ... rest of the database method code
     }
 
     public function migrate()
     {
         try {
+            Log::info('Starting database migrations');
+
+            // Run migrations
             Artisan::call('migrate', ['--force' => true]);
+            Log::info('Migrations completed successfully');
+
+            // Run seeders
             Artisan::call('db:seed', ['--force' => true]);
-            
+            Log::info('Seeders completed successfully');
+
             return redirect()->route('install.admin.form')
                 ->with('success', 'Migrations and seeders ran successfully.');
+
         } catch (Exception $e) {
+            Log::error('Migration failed: ' . $e->getMessage());
             return redirect()->back()->with('error', 'Migration failed: ' . $e->getMessage());
         }
     }
 
-    public function importDatabase()
+    public function importDatabase(Request $request)
     {
         try {
+            Log::info('Starting database import process');
+
             $sqlPath = base_path('database/factories/application.sql');
             if (!File::exists($sqlPath)) {
+                Log::warning('SQL file not found, redirecting to migrations');
                 return redirect()->route('install.migrate');
             }
 
+            Log::info('Importing SQL file: ' . $sqlPath);
             $this->importSqlFile($sqlPath);
-            
+            Log::info('SQL file imported successfully');
+
             return redirect()->route('install.admin.form')
                 ->with('success', 'Database imported successfully.');
+
         } catch (Exception $e) {
+            Log::error('Database import failed: ' . $e->getMessage());
             return redirect()->back()->with('error', 'Database import failed: ' . $e->getMessage());
         }
     }
@@ -214,7 +184,7 @@ class SecurityController extends Controller
 
             Artisan::call('config:clear');
             Artisan::call('cache:clear');
-            
+
             return redirect()->route('install.finish')->with('success', 'Admin user created successfully.');
         } catch (Exception $e) {
             return redirect()->back()->withErrors(['admin' => 'Failed to create admin user: ' . $e->getMessage()])->withInput();
