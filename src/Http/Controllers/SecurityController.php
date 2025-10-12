@@ -130,7 +130,7 @@ class SecurityController extends Controller
             );
 
             // Enable foreign key checks
-            DB::statement('SET FOREIGN_KEY_CHECKS=1;');
+            // DB::statement('SET FOREIGN_KEY_CHECKS=1;');
 
             Artisan::call('migrate', ['--force' => true]);
 
