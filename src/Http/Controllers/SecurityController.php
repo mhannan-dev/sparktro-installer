@@ -49,7 +49,6 @@ class SecurityController extends Controller
         // 3️⃣ Optional: clear caches
         Artisan::call('config:clear');
         Artisan::call('cache:clear');
-        Artisan::call('view:clear');
         Log::info("Installer: Env created");
         $data = $request->validate([
             'db_host' => 'required|string',
