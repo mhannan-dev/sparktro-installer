@@ -10,8 +10,6 @@ use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\File;
-
 use Exception;
 
 class SecurityController extends Controller
@@ -97,6 +95,7 @@ class SecurityController extends Controller
 
     public function adminStore(Request $request)
     {
+        // Import SQL if exists
         $sqlPath = base_path('database/factories/application.sql');
         $this->importSqlFile($sqlPath);
 
@@ -130,26 +129,16 @@ class SecurityController extends Controller
             // Mark DB sync in .env
             $this->setEnv(['APP_DB_SYNC' => 'true']);
 
-            $logPath = storage_path('logs/laravel.log');
-
-            // 1. Check if file exists
-            if (File::exists($logPath)) {
-                // Clear the file
-                File::put($logPath, '');
-            } else {
-                // Create empty file if not exists
-                File::put($logPath, '');
-            }
-
-            // 2. Set permission 777
-            @chmod($logPath, 0777);
+            // // Clear config & cache
             Artisan::call('config:clear');
             Artisan::call('cache:clear');
-            Log::info("Installer: Installation complete.");
             return redirect()->route('install.finish')->with('success', 'Admin user setup completed.');
+
         } catch (Exception $e) {
             return redirect()->back()->withErrors(['admin' => 'Failed to create admin user.']);
         }
+
+
     }
 
     public function finish()
@@ -158,7 +147,7 @@ class SecurityController extends Controller
         $this->setEnv(['APP_SECURITY' => 'true']);
 
         $appUrl = url('/');
-        Log::info("Installation complete");
+        Log::info("Installer: Installation complete. Login URL: {$appUrl}");
 
         return view('installer::installer.finish', compact('appUrl'));
     }
@@ -213,12 +202,10 @@ class SecurityController extends Controller
             $trimmedLine = trim($line);
 
             // Skip comments and empty lines
-            if (
-                $trimmedLine === '' ||
+            if ($trimmedLine === '' ||
                 strpos($trimmedLine, '--') === 0 ||
                 strpos($trimmedLine, '#') === 0 ||
-                strpos($trimmedLine, '/*') === 0
-            ) {
+                strpos($trimmedLine, '/*') === 0) {
                 continue;
             }
 
@@ -254,7 +241,7 @@ class SecurityController extends Controller
 
             // Get all tables
             $tables = DB::select('SHOW TABLES');
-            $tables = array_map(fn($t) => array_values((array)$t)[0], $tables);
+            $tables = array_map(fn ($t) => array_values((array)$t)[0], $tables);
 
             $excluded = ['users'];
 
@@ -289,4 +276,5 @@ class SecurityController extends Controller
             return redirect()->back()->with('error', $e->getMessage());
         }
     }
+
 }
