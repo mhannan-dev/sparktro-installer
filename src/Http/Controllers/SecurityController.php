@@ -42,13 +42,7 @@ class SecurityController extends Controller
         ini_set('max_execution_time', 300); // 5 minutes
         ini_set('memory_limit', '512M');
 
-        if (!File::exists(base_path('.env'))) {
-            // Copy .env.example to .env
-            File::copy(base_path('.env.example'), base_path('.env'));
-            $envCreated = true;
-        } else {
-            $envCreated = false;
-        }
+        $this->ensureEnv();
 
         // 2️⃣ Generate APP_KEY
         Artisan::call('key:generate');
@@ -297,5 +291,31 @@ class SecurityController extends Controller
             }
             return redirect()->back()->with('error', $e->getMessage());
         }
+    }
+
+
+    public function ensureEnv()
+    {
+        $envPath = base_path('.env');
+        $envExamplePath = base_path('.env.example');
+
+        // 1️⃣ Check if .env exists
+        if (!File::exists($envPath)) {
+            if (File::exists($envExamplePath)) {
+                // Copy .env.example to .env
+                File::copy($envExamplePath, $envPath);
+                Log::info("Installer: .env file created from .env.example");
+            } else {
+                Log::error("Installer: .env.example not found. Cannot create .env.");
+                throw new \Exception(".env.example not found. Please create one manually.");
+            }
+        } else {
+            Log::info("Installer: .env already exists");
+        }
+
+        // 2️⃣ Set correct permissions
+        $webUser = 'www-data'; // adjust if your web server user is different
+        @chmod($envPath, 0664); // writable by owner & group
+        @chown($envPath, $webUser);
     }
 }
