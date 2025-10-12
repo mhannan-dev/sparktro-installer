@@ -60,8 +60,7 @@ class SecurityController extends Controller
             'DB_DATABASE' => $name,
             'DB_USERNAME' => $user,
             'DB_PASSWORD' => $pass,
-            'SESSION_DRIVER' => 'database',
-            'CACHE_STORE' => 'database',
+
         ]);
 
         // Update runtime config
@@ -126,19 +125,20 @@ class SecurityController extends Controller
             // Run seeders
             Artisan::call('db:seed', ['--force' => true]);
 
-            // Mark DB sync in .env
-            $this->setEnv(['APP_DB_SYNC' => 'true']);
+            $this->setEnv([
+                'APP_DB_SYNC' => 'true',
+                'SESSION_DRIVER' => 'database',
+                'CACHE_STORE' => 'database',
+            ]);
+
 
             // // Clear config & cache
             Artisan::call('config:clear');
             Artisan::call('cache:clear');
             return redirect()->route('install.finish')->with('success', 'Admin user setup completed.');
-
         } catch (Exception $e) {
             return redirect()->back()->withErrors(['admin' => 'Failed to create admin user.']);
         }
-
-
     }
 
     public function finish()
@@ -202,10 +202,12 @@ class SecurityController extends Controller
             $trimmedLine = trim($line);
 
             // Skip comments and empty lines
-            if ($trimmedLine === '' ||
+            if (
+                $trimmedLine === '' ||
                 strpos($trimmedLine, '--') === 0 ||
                 strpos($trimmedLine, '#') === 0 ||
-                strpos($trimmedLine, '/*') === 0) {
+                strpos($trimmedLine, '/*') === 0
+            ) {
                 continue;
             }
 
@@ -241,7 +243,7 @@ class SecurityController extends Controller
 
             // Get all tables
             $tables = DB::select('SHOW TABLES');
-            $tables = array_map(fn ($t) => array_values((array)$t)[0], $tables);
+            $tables = array_map(fn($t) => array_values((array)$t)[0], $tables);
 
             $excluded = ['users'];
 
@@ -276,5 +278,4 @@ class SecurityController extends Controller
             return redirect()->back()->with('error', $e->getMessage());
         }
     }
-
 }
