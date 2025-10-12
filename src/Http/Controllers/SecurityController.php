@@ -16,6 +16,8 @@ class SecurityController extends Controller
 {
     public function requirements()
     {
+
+         $this->ensureStorageExists();
         $requirements = [
             // PHP version
             'PHP >= 8.2' => version_compare(PHP_VERSION, '8.2.0', '>='),
@@ -34,6 +36,43 @@ class SecurityController extends Controller
         ];
         return view('installer::installer.requirements', compact('requirements'));
     }
+
+     protected function ensureStorageExists()
+    {
+        $storagePaths = [
+            storage_path('app/public/uploads'),
+            storage_path('app/private'),
+            storage_path('framework/cache'),
+            storage_path('framework/sessions'),
+            storage_path('framework/views'),
+            storage_path('framework/testing'),
+            storage_path('logs'),
+            storage_path('pail'),
+            base_path('bootstrap/cache'),
+            public_path('storage'), // public/storage
+            public_path('storage/uploads'), // optional
+        ];
+
+        foreach ($storagePaths as $path) {
+            if (!File::exists($path)) {
+                File::makeDirectory($path, 0775, true);
+            }
+
+            // .gitignore create
+            $gitignore = $path . '/.gitignore';
+            if (!File::exists($gitignore)) {
+                File::put($gitignore, "*\n!.gitignore\n");
+            }
+        }
+
+        // Laravel log file নিশ্চিত করা
+        $logFile = storage_path('logs/laravel.log');
+        if (!File::exists($logFile)) {
+            File::put($logFile, '');
+        }
+        chmod($logFile, 0666);
+    }
+
 
 
     public function database(Request $request)
