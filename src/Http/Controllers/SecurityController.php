@@ -30,8 +30,6 @@ class SecurityController extends Controller
             'Writable storage/framework/' => is_writable(storage_path('framework')),
             'Writable storage/logs/' => is_writable(storage_path('logs')),
             'Writable bootstrap/cache/' => is_writable(base_path('bootstrap/cache')),
-
-            // Writable .env
             'Writable .env' => is_writable(base_path('.env')),
         ];
         return view('installer::installer.requirements', compact('requirements'));
