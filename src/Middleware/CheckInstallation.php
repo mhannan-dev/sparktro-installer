@@ -9,15 +9,13 @@ class CheckInstallation
 {
     public function handle(Request $request, Closure $next)
     {
-        $isDbSynced = filter_var(env('APP_DB_SYNC', false), FILTER_VALIDATE_BOOLEAN);
-        $isSecured  = filter_var(env('APP_SECURITY', false), FILTER_VALIDATE_BOOLEAN);
+        $appSecurity = filter_var(env('APP_SECURITY', false), FILTER_VALIDATE_BOOLEAN);
 
-        if ($isDbSynced && $isSecured && $request->is('install*')) {
-            return abort(404);
-
+        if ($appSecurity === true && $request->is('install*')) {
+            return redirect('login');
         }
 
-        if (! $isDbSynced || ! $isSecured) {
+        if ($appSecurity !== true && $request->is('install*')) {
             return $next($request);
         }
 

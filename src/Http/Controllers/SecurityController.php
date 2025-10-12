@@ -35,8 +35,22 @@ class SecurityController extends Controller
         ini_set('max_execution_time', 300); // 5 minutes
         ini_set('memory_limit', '512M');
 
-        Log::info('Installer: Starting database configuration process.');
+        if (!File::exists(base_path('.env'))) {
+            // Copy .env.example to .env
+            File::copy(base_path('.env.example'), base_path('.env'));
+            $envCreated = true;
+        } else {
+            $envCreated = false;
+        }
 
+        // 2️⃣ Generate APP_KEY
+        Artisan::call('key:generate');
+
+        // 3️⃣ Optional: clear caches
+        Artisan::call('config:clear');
+        Artisan::call('cache:clear');
+        Artisan::call('view:clear');
+        Log::info("Installer: Env created");
         $data = $request->validate([
             'db_host' => 'required|string',
             'db_port' => 'nullable|numeric',
@@ -52,15 +66,14 @@ class SecurityController extends Controller
         $pass = $data['db_pass'] ?? '';
 
         // Update .env
-        Log::info("Installer: Updating .env with DB credentials (host: {$host}, db: {$name}).");
+        Log::info("Installer: Updating .env with DB credentials");
         $this->setEnv([
             'DB_CONNECTION' => 'mysql',
             'DB_HOST' => $host,
             'DB_PORT' => $port,
             'DB_DATABASE' => $name,
             'DB_USERNAME' => $user,
-            'DB_PASSWORD' => $pass,
-
+            'DB_PASSWORD' => $pass
         ]);
 
         // Update runtime config
@@ -126,13 +139,14 @@ class SecurityController extends Controller
             Artisan::call('db:seed', ['--force' => true]);
 
             $this->setEnv([
-                'APP_DB_SYNC' => 'true',
                 'SESSION_DRIVER' => 'database',
                 'CACHE_STORE' => 'database',
             ]);
 
 
-            // // Clear config & cache
+            // Mark DB sync in .env
+            $this->setEnv(['APP_DB_SYNC' => 'true']);
+
             Artisan::call('config:clear');
             Artisan::call('cache:clear');
             return redirect()->route('install.finish')->with('success', 'Admin user setup completed.');
