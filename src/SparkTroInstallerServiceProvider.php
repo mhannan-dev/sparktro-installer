@@ -4,7 +4,7 @@ namespace Sparktro\Installer;
 
 use Illuminate\Support\ServiceProvider;
 
-class IgniteServiceProvider extends ServiceProvider
+class SparkTroInstallerServiceProvider extends ServiceProvider
 {
     public function boot()
     {
