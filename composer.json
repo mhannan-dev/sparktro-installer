@@ -1,8 +1,12 @@
 {
+  "name": "sparktro/ignite",
+  "description": "Sparktro Laravel App Installer Package",
+  "type": "library",
+  "license": "MIT",
   "authors": [
     {
-      "email": "mdhannan.info@gmail.com",
-      "name": "Muhammad Hannan"
+      "name": "Muhammad Hannan",
+      "email": "mdhannan.info@gmail.com"
     }
   ],
   "autoload": {
@@ -10,11 +14,14 @@
       "Sparktro\\Installer\\": "src/"
     }
   },
-  "description": "Sparktro Laravel App Installer Package",
+  "require": {
+    "php": "^8.2",
+    "illuminate/support": "^12.0"
+  },
   "extra": {
     "laravel": {
       "providers": [
-        "IgniteServiceProvider"
+        "Sparktro\\Installer\\SparkTroInstallerServiceProvider"
       ]
     }
   },
@@ -25,13 +32,7 @@
     "setup",
     "sparktro"
   ],
-  "license": "MIT",
   "minimum-stability": "dev",
-  "name": "sparktro/ignite",
   "prefer-stable": true,
-  "require": {
-    "illuminate/support": "^12.0",
-    "php": "^8.2"
-  },
-  "type": "library"
+  "version": "v9.1"
 }
