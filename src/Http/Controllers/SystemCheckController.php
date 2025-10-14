@@ -23,11 +23,9 @@ class SystemCheckController extends Controller
     public function requirements()
     {
         $this->ensureStorageExists();
-        $requirements = [
-            // PHP version
-            'PHP >= 8.2' => version_compare(PHP_VERSION, '8.2.0', '>='),
 
-            // PHP extensions
+        $requirements = [
+            'PHP >= 8.2' => version_compare(PHP_VERSION, '8.2.0', '>='),
             'PDO' => extension_loaded('pdo'),
             'Mbstring' => extension_loaded('mbstring'),
             'OpenSSL' => extension_loaded('openssl'),
@@ -36,13 +34,11 @@ class SystemCheckController extends Controller
             'BCMath' => extension_loaded('bcmath'),
             'XML' => extension_loaded('xml'),
             'Tokenizer' => extension_loaded('tokenizer'),
-
-            // Writable directories
             'Writable storage/' => is_writable(storage_path()),
             'Writable storage/framework/' => is_writable(storage_path('framework')),
             'Writable storage/logs/' => is_writable(storage_path('logs')),
             'Writable bootstrap/cache/' => is_writable(base_path('bootstrap/cache')),
-            'Writable .env' => !file_exists(base_path('.env')) || is_writable(base_path('.env')),
+            'Writable .env' => !File::exists(base_path('.env')) || is_writable(base_path('.env')),
         ];
 
         $allRequirementsMet = !in_array(false, $requirements, true);
@@ -54,35 +50,61 @@ class SystemCheckController extends Controller
     {
         if ($request->isMethod('post')) {
             $data = $request->validate([
+                'domain_name' => 'required|string|max:255',
+                'codecanyon_username' => 'required|string|max:255',
+                'codecanyon_license_key' => 'required|string|max:255',
                 'app_name' => 'required|string|max:255',
                 'app_url' => 'required|url',
                 'db_host' => 'required|string',
                 'db_port' => 'required|numeric',
-                'db_name' => 'required|string',
-                'db_user' => 'required|string',
-                'db_pass' => 'nullable|string',
+                'db_database' => 'required|string',
+                'db_username' => 'required|string',
+                'db_password' => 'nullable|string',
             ]);
+
+            $envData = [
+                'DB_CONNECTION' => 'mysql',
+                'DB_HOST' => $data['db_host'],
+                'DB_PORT' => $data['db_port'],
+                'DB_DATABASE' => $data['db_database'],
+                'DB_USERNAME' => $data['db_username'],
+                'DB_PASSWORD' => $data['db_password'] ?? '',
+                'APP_DB' => 'true',
+                'APP_URL' => $data['domain_name'],
+                'CODECANYON_USERNAME' => $data['codecanyon_username'],
+                'CODECANYON_LICENSE' => $data['codecanyon_license_key'],
+            ];
 
             try {
                 $this->ensureEnv();
+                $this->setEnv($envData);
 
-                // Set basic app configuration
-                $this->setEnv([
-                    'APP_NAME' => '"' . $data['app_name'] . '"',
-                    'APP_URL' => $data['app_url'],
-                    'APP_ENV' => 'local',
-                    'APP_DEBUG' => 'true'
+                // Clear caches
+                Artisan::call('config:clear');
+                Artisan::call('cache:clear');
+                Artisan::call('route:clear');
+
+                // Test DB connection
+                config([
+                    'database.default' => 'mysql',
+                    'database.connections.mysql.host' => $envData['DB_HOST'],
+                    'database.connections.mysql.port' => $envData['DB_PORT'],
+                    'database.connections.mysql.database' => $envData['DB_DATABASE'],
+                    'database.connections.mysql.username' => $envData['DB_USERNAME'],
+                    'database.connections.mysql.password' => $envData['DB_PASSWORD'],
                 ]);
 
-                // Store data in session for next step
-                $request->session()->put('installer_data', $data);
-                Log::info('Environment data saved to session', $data);
+                DB::purge('mysql');
+                DB::connection('mysql')->getPdo();
+
+                Log::info('Database connection test successful', ['host' => $envData['DB_HOST'], 'database' => $envData['DB_DATABASE']]);
+
+                $request->session()->put('installer_data', $envData);
 
                 return redirect()->route('install.database');
-
             } catch (Exception $e) {
                 Log::error('Environment setup failed: ' . $e->getMessage());
-                return redirect()->back()->with('error', $e->getMessage())->withInput();
+                return back()->with('error', $e->getMessage())->withInput();
             }
         }
 
@@ -91,7 +113,6 @@ class SystemCheckController extends Controller
 
     public function database(Request $request)
     {
-        // Get data from session
         $data = $request->session()->get('installer_data');
 
         if (empty($data)) {
@@ -99,60 +120,53 @@ class SystemCheckController extends Controller
             return redirect()->route('install.environment');
         }
 
-        Log::info('Processing database setup with data:', $data);
+        Log::info('Processing database setup with session data', $data);
 
-        // ... rest of the database method code
+        return view('installer::installer.database');
     }
 
     public function migrate()
     {
         try {
-            Log::info('Starting database migrations');
+            Log::info('Running migrations and seeders');
 
-            // Run migrations
             Artisan::call('migrate', ['--force' => true]);
-            Log::info('Migrations completed successfully');
-
-            // Run seeders
             Artisan::call('db:seed', ['--force' => true]);
-            Log::info('Seeders completed successfully');
+
+            Log::info('Migrations and seeders completed');
 
             return redirect()->route('install.admin.form')
                 ->with('success', 'Migrations and seeders ran successfully.');
-
         } catch (Exception $e) {
             Log::error('Migration failed: ' . $e->getMessage());
-            return redirect()->back()->with('error', 'Migration failed: ' . $e->getMessage());
+            return back()->with('error', 'Migration failed: ' . $e->getMessage());
         }
     }
 
     public function importDatabase(Request $request)
     {
         try {
-            Log::info('Starting database import process');
-
             $sqlPath = base_path('database/factories/application.sql');
+
             if (!File::exists($sqlPath)) {
-                Log::warning('SQL file not found, redirecting to migrations');
+                Log::warning('SQL file not found, redirecting to migrate');
                 return redirect()->route('install.migrate');
             }
 
-            Log::info('Importing SQL file: ' . $sqlPath);
             $this->importSqlFile($sqlPath);
             Log::info('SQL file imported successfully');
 
             return redirect()->route('install.admin.form')
                 ->with('success', 'Database imported successfully.');
-
         } catch (Exception $e) {
             Log::error('Database import failed: ' . $e->getMessage());
-            return redirect()->back()->with('error', 'Database import failed: ' . $e->getMessage());
+            return back()->with('error', 'Database import failed: ' . $e->getMessage());
         }
     }
 
     public function adminForm()
     {
-        Log::info('Installer: Displaying admin user creation form.');
+        Log::info('Displaying admin creation form');
         return view('installer::installer.admin');
     }
 
@@ -165,16 +179,14 @@ class SystemCheckController extends Controller
         ]);
 
         try {
-            // Update existing user or create new
-            $user = User::updateOrCreate(
-                ['email' => $data['email']],
-                [
-                    'name' => $data['name'],
-                    'role_id' => 1,
-                    'password' => Hash::make($data['password']),
-                    'email_verified_at' => now(),
-                ]
-            );
+            $user = DB::table('users')->insert([
+                'name' => $request->name,
+                'email' => $request->email,
+                'password' => Hash::make($request->password),
+                'role_id' => 1,
+                'can_login' => 1,
+                'status' => 1
+            ]);
 
             $this->setEnv([
                 'SESSION_DRIVER' => 'database',
@@ -187,19 +199,16 @@ class SystemCheckController extends Controller
 
             return redirect()->route('install.finish')->with('success', 'Admin user created successfully.');
         } catch (Exception $e) {
-            return redirect()->back()->withErrors(['admin' => 'Failed to create admin user: ' . $e->getMessage()])->withInput();
+            return back()->withErrors(['admin' => 'Failed to create admin user: ' . $e->getMessage()])->withInput();
         }
     }
 
     public function finish()
     {
-        // Lock installer
         $this->setEnv(['APP_INSTALLED' => 'true']);
-
         $appUrl = url('/');
-        Log::info("Installer: Installation complete. Login URL: {$appUrl}");
+        Log::info("Installation finished. App URL: {$appUrl}");
 
-        // Final optimizations
         Artisan::call('config:cache');
         Artisan::call('route:cache');
         Artisan::call('view:cache');
@@ -209,7 +218,7 @@ class SystemCheckController extends Controller
 
     protected function ensureStorageExists()
     {
-        $storagePaths = [
+        $paths = [
             storage_path('app/public/uploads'),
             storage_path('app/private'),
             storage_path('framework/cache'),
@@ -223,110 +232,68 @@ class SystemCheckController extends Controller
             public_path('storage/uploads'),
         ];
 
-        foreach ($storagePaths as $path) {
-            if (!File::exists($path)) {
-                File::makeDirectory($path, 0775, true);
-            }
-
-            // Add .gitignore so empty folders can exist in zip
+        foreach ($paths as $path) {
+            if (!File::exists($path)) File::makeDirectory($path, 0775, true);
             $gitignore = $path . '/.gitignore';
-            if (!File::exists($gitignore)) {
-                File::put($gitignore, "*\n!.gitignore\n");
-            }
-
-            // Make sure folder is writable
+            if (!File::exists($gitignore)) File::put($gitignore, "*\n!.gitignore\n");
             @chmod($path, 0775);
         }
 
-        // Ensure laravel.log exists
         $logFile = storage_path('logs/laravel.log');
-        if (!File::exists($logFile)) {
-            File::put($logFile, '');
-        }
+        if (!File::exists($logFile)) File::put($logFile, '');
         chmod($logFile, 0666);
     }
 
     private function setEnv(array $values)
     {
+        $this->ensureEnv();
         $path = base_path('.env');
-        if (!File::exists($path)) {
-            $this->ensureEnv();
-        }
-
         $content = File::get($path);
-        
+
         foreach ($values as $key => $value) {
-            // Remove existing quotes before processing
             $cleanValue = trim($value, '"\'');
-            
-            // Decide if value needs quotes (contains spaces or special chars)
             $needsQuotes = preg_match('/[\s#\']/', $cleanValue);
             $formattedValue = $needsQuotes ? "\"{$cleanValue}\"" : $cleanValue;
-            
-            $replacement = $key . '=' . $formattedValue;
             $pattern = "/^{$key}=.*$/m";
-
-            if (preg_match($pattern, $content)) {
-                $content = preg_replace($pattern, $replacement, $content, 1);
-                Log::debug("Installer: Updated .env key: {$key} = {$formattedValue}");
-            } else {
-                $content .= PHP_EOL . $replacement;
-                Log::debug("Installer: Added .env key: {$key} = {$formattedValue}");
-            }
+            $replacement = "{$key}={$formattedValue}";
+            $content = preg_match($pattern, $content)
+                ? preg_replace($pattern, $replacement, $content, 1)
+                : $content.PHP_EOL.$replacement;
+            Log::debug("Updated .env: {$key}={$formattedValue}");
         }
 
         File::put($path, $content);
-        Log::info('Installer: .env updated successfully');
+        Log::info('.env updated successfully');
     }
 
     private function importSqlFile(string $filePath)
     {
-        if (!File::exists($filePath)) {
-            throw new Exception("SQL file not found: {$filePath}");
-        }
+        if (!File::exists($filePath)) throw new Exception("SQL file not found");
 
         $handle = fopen($filePath, 'r');
-        if (!$handle) {
-            throw new Exception("Cannot open SQL file: {$filePath}");
-        }
-
         $sql = '';
         $lineNumber = 0;
 
         while (($line = fgets($handle)) !== false) {
             $lineNumber++;
             $trimmedLine = trim($line);
-
-            // Skip comments and empty lines
-            if (
-                $trimmedLine === '' ||
-                strpos($trimmedLine, '--') === 0 ||
-                strpos($trimmedLine, '#') === 0 ||
-                strpos($trimmedLine, '/*') === 0
-            ) {
-                continue;
-            }
+            if ($trimmedLine === '' || str_starts_with($trimmedLine, ['--','#','/*'])) continue;
 
             $sql .= $line;
-
-            // Execute when statement ends with ;
             if (substr(rtrim($line), -1) === ';') {
-                $statement = rtrim($sql, " \t\n\r\0\x0B;");
-                if (!empty($statement)) {
-                    try {
-                        DB::statement($statement);
-                    } catch (Exception $e) {
-                        fclose($handle);
-                        Log::error("SQL error at line {$lineNumber}: " . $e->getMessage());
-                        throw new Exception("SQL failed at line {$lineNumber}: " . $e->getMessage());
-                    }
+                try {
+                    DB::statement(rtrim($sql, ';'));
+                } catch (Exception $e) {
+                    fclose($handle);
+                    Log::error("SQL error at line {$lineNumber}: ".$e->getMessage());
+                    throw new Exception("SQL failed at line {$lineNumber}: ".$e->getMessage());
                 }
-                $sql = ''; // Reset buffer
+                $sql = '';
             }
         }
 
         fclose($handle);
-        Log::info('Installer: SQL file imported successfully (streamed).');
+        Log::info('SQL imported successfully');
     }
 
     public function ensureEnv()
@@ -334,21 +301,18 @@ class SystemCheckController extends Controller
         $envPath = base_path('.env');
         $envExamplePath = base_path('.env.example');
 
-        // 1️⃣ Check if .env exists
         if (!File::exists($envPath)) {
             if (File::exists($envExamplePath)) {
-                // Copy .env.example to .env
                 File::copy($envExamplePath, $envPath);
-                Log::info("Installer: .env file created from .env.example");
+                Log::info('.env created from .env.example');
             } else {
-                Log::error("Installer: .env.example not found. Cannot create .env.");
-                throw new \Exception(".env.example not found. Please create one manually.");
+                Log::error('.env.example not found');
+                throw new Exception('.env.example not found, please create one manually.');
             }
         } else {
-            Log::info("Installer: .env already exists");
+            Log::info('.env already exists');
         }
 
-        // 2️⃣ Set correct permissions
         @chmod($envPath, 0664);
     }
 }
