@@ -12,7 +12,7 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Exception;
 
-class SecurityController extends Controller
+class SystemCheckController extends Controller
 {
     public function welcome()
     {
@@ -70,8 +70,8 @@ class SecurityController extends Controller
                 $this->setEnv([
                     'APP_NAME' => '"' . $data['app_name'] . '"',
                     'APP_URL' => $data['app_url'],
-                    'APP_ENV' => 'production',
-                    'APP_DEBUG' => 'false'
+                    'APP_ENV' => 'local',
+                    'APP_DEBUG' => 'true'
                 ]);
 
                 // Store data in session for next step
@@ -254,22 +254,29 @@ class SecurityController extends Controller
         }
 
         $content = File::get($path);
+        
         foreach ($values as $key => $value) {
-            $strValue = $value === '' ? '' : (string) $value;
-            $replacement = $key . '=' . ($strValue === '' ? '' : "\"{$strValue}\"");
-            $pattern = "/^" . preg_quote($key, '/') . "=.*$/m";
+            // Remove existing quotes before processing
+            $cleanValue = trim($value, '"\'');
+            
+            // Decide if value needs quotes (contains spaces or special chars)
+            $needsQuotes = preg_match('/[\s#\']/', $cleanValue);
+            $formattedValue = $needsQuotes ? "\"{$cleanValue}\"" : $cleanValue;
+            
+            $replacement = $key . '=' . $formattedValue;
+            $pattern = "/^{$key}=.*$/m";
 
             if (preg_match($pattern, $content)) {
-                $content = preg_replace($pattern, $replacement, $content);
-                Log::debug("Installer: Updated .env key: {$key}");
+                $content = preg_replace($pattern, $replacement, $content, 1);
+                Log::debug("Installer: Updated .env key: {$key} = {$formattedValue}");
             } else {
                 $content .= PHP_EOL . $replacement;
-                Log::debug("Installer: Added .env key: {$key}");
+                Log::debug("Installer: Added .env key: {$key} = {$formattedValue}");
             }
         }
 
         File::put($path, $content);
-        Log::debug('Installer: .env updated.');
+        Log::info('Installer: .env updated successfully');
     }
 
     private function importSqlFile(string $filePath)

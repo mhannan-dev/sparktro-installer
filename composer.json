@@ -14,7 +14,7 @@
   "extra": {
     "laravel": {
       "providers": [
-        "Sparktro\\Installer\\SparkTroInstallerServiceProvider"
+        "IgniteServiceProvider"
       ]
     }
   },
