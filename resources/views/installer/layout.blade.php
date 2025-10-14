@@ -1,103 +1,37 @@
-{{-- <!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>Installer</title>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/tailwindcss/dist/tailwind.min.css">
-</head>
-<body class="text-gray-800 bg-gray-100">
-    <div class="p-6 mx-auto mt-10 max-w-2xl bg-white rounded shadow-md">
-        <h1 class="mb-6 text-2xl font-bold">Installation Wizard</h1>
-        @yield('content')
-    </div>
-</body>
-</html> --}}
-
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{{ config('app.name') }} - Installation Wizard</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+    <script src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+
     <style>
-        :root {
-            --primary: #3b82f6;
-            --primary-dark: #2563eb;
-            --success: #10b981;
-            --danger: #ef4444;
-            --gray-light: #f8fafc;
-            --gray-border: #e2e8f0;
-        }
-        
+        /* Custom styles to mimic the original look and feel using Bootstrap utilities */
         body {
-            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            /* Mimic original background gradient */
             background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
             min-height: 100vh;
         }
-        
+
         .installer-card {
-            background: white;
+            /* Mimic original card styling */
             border-radius: 12px;
             box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
             overflow: hidden;
+            background-color: white; /* Ensure white background */
         }
-        
-        .status-badge {
-            display: inline-flex;
-            align-items: center;
-            padding: 4px 10px;
-            border-radius: 20px;
-            font-size: 0.75rem;
-            font-weight: 500;
-        }
-        
-        .status-success {
-            background-color: #d1fae5;
-            color: #065f46;
-        }
-        
-        .status-danger {
-            background-color: #fee2e2;
-            color: #991b1b;
-        }
-        
-        .form-input {
-            transition: all 0.2s ease;
-            border: 1px solid var(--gray-border);
-        }
-        
-        .form-input:focus {
-            border-color: var(--primary);
-            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
-        }
-        
-        .btn-primary {
-            background-color: var(--primary);
-            transition: all 0.2s ease;
-        }
-        
-        .btn-primary:hover {
-            background-color: var(--primary-dark);
-            transform: translateY(-1px);
-        }
-        
-        .requirement-item {
-            border-bottom: 1px solid var(--gray-border);
-            padding: 12px 0;
-        }
-        
-        .requirement-item:last-child {
-            border-bottom: none;
-        }
-        
+
+        /* --- Step Indicator Custom Styling for Visual Fidelity --- */
+
         .step-indicator {
             display: flex;
             justify-content: center;
             margin-bottom: 2rem;
         }
-        
+
         .step {
             display: flex;
             flex-direction: column;
@@ -105,7 +39,7 @@
             position: relative;
             width: 120px;
         }
-        
+
         .step:not(:last-child):after {
             content: '';
             position: absolute;
@@ -113,13 +47,13 @@
             left: 60px;
             width: 60px;
             height: 2px;
-            background-color: #d1d5db;
+            background-color: #d1d5db; /* Gray line */
         }
-        
+
         .step.active:not(:last-child):after {
-            background-color: var(--primary);
+            background-color: #0d6efd; /* Bootstrap primary blue */
         }
-        
+
         .step-circle {
             width: 40px;
             height: 40px;
@@ -129,42 +63,40 @@
             justify-content: center;
             font-weight: 600;
             margin-bottom: 8px;
-            background-color: #e5e7eb;
-            color: #6b7280;
+            background-color: #e5e7eb; /* Light gray */
+            color: #6b7280; /* Darker gray text */
         }
-        
+
         .step.active .step-circle {
-            background-color: var(--primary);
+            background-color: #0d6efd; /* Primary blue */
             color: white;
         }
-        
+
         .step.completed .step-circle {
-            background-color: var(--success);
+            background-color: #198754; /* Success green */
             color: white;
         }
-        
+
         .step-label {
             font-size: 0.875rem;
-            color: #6b7280;
+            color: #6b7280; /* Darker gray text */
             text-align: center;
         }
-        
+
         .step.active .step-label {
-            color: var(--primary);
+            color: #0d6efd; /* Primary blue */
             font-weight: 500;
         }
+
+        /* End Step Indicator Custom Styling */
     </style>
 </head>
-<body class="flex justify-center items-center p-4 min-h-screen">
-    <div class="w-full max-w-3xl">
-        <div class="mb-8 text-center">
-            <div class="flex justify-center items-center mb-4">
-                <i class="mr-3 text-3xl text-blue-500 fas fa-hands-helping"></i>
-                <h1 class="text-3xl font-bold text-gray-800">{{ config('app.name') }}</h1>
-            </div>
-            <p class="text-gray-600">Installation Wizard</p>
-            
-            <!-- Step Indicator -->
+<body class="d-flex justify-content-center align-items-center p-4">
+    <div class="container-md" style="max-width: 768px;"> <div class="mb-5 text-center">
+            <div class="d-flex justify-content-center align-items-center mb-3">
+                <i class="me-3 fs-3 text-primary fa-solid fa-hands-helping"></i> <h1 class="h3 fw-bold text-dark">{{ config('app.name') }}</h1> </div>
+            <p class="text-secondary">Installation Wizard</p>
+
             <div class="step-indicator">
                 <div class="step @if(Request::is('install/requirements')) active @elseif(Request::is('install/database') || Request::is('install/admin') || Request::is('install/complete')) completed @endif">
                     <div class="step-circle">
@@ -192,51 +124,54 @@
                 </div>
             </div>
         </div>
-        
-        <div class="p-8 installer-card">
-            @yield('content')
+
+        <div class="p-4 p-md-5 installer-card"> @yield('content')
         </div>
-        
-        <div class="mt-6 text-sm text-center text-gray-500">
+
+        <div class="mt-4 text-center text-secondary small">
             {{ config('app.name') }} Installer &copy; {{ date('Y') }}
         </div>
     </div>
 
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
+
     <script>
-        // Simple form validation
+        // Simple form validation - adapted to use Bootstrap's 'is-invalid' class and feedback
         document.addEventListener('DOMContentLoaded', function() {
             const forms = document.querySelectorAll('form');
-            
+
             forms.forEach(form => {
                 form.addEventListener('submit', function(e) {
                     const inputs = this.querySelectorAll('input[required]');
                     let valid = true;
-                    
+
                     inputs.forEach(input => {
+                        // Clear previous validation state
+                        input.classList.remove('is-invalid');
+                        const existingFeedback = input.parentNode.querySelector('.invalid-feedback');
+                        if (existingFeedback) {
+                            existingFeedback.remove();
+                        }
+
                         if (!input.value.trim()) {
                             valid = false;
-                            input.classList.add('border-red-500');
-                            
-                            // Add error message
-                            if (!input.nextElementSibling || !input.nextElementSibling.classList.contains('error-message')) {
-                                const errorMsg = document.createElement('p');
-                                errorMsg.className = 'error-message text-red-500 text-xs mt-1';
-                                errorMsg.textContent = 'This field is required';
-                                input.parentNode.appendChild(errorMsg);
-                            }
-                        } else {
-                            input.classList.remove('border-red-500');
-                            const errorMsg = input.parentNode.querySelector('.error-message');
-                            if (errorMsg) {
-                                errorMsg.remove();
-                            }
+                            input.classList.add('is-invalid');
+
+                            // Add error message using Bootstrap's invalid-feedback
+                            const errorMsg = document.createElement('div');
+                            errorMsg.className = 'invalid-feedback';
+                            errorMsg.textContent = 'This field is required';
+                            input.parentNode.appendChild(errorMsg);
                         }
+                        // Note: If input has content, the 'is-invalid' class is simply removed.
+                        // Bootstrap's validation works by adding/removing this class.
                     });
-                    
+
                     if (!valid) {
                         e.preventDefault();
+                        e.stopPropagation(); // Stop event bubbling
                     }
-                });
+                }, false);
             });
         });
     </script>

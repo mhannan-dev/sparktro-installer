@@ -17,13 +17,6 @@ class SystemCheckController extends Controller
     public function welcome()
     {
         $this->ensureStorageExists();
-        return view('installer::installer.welcome');
-    }
-
-    public function requirements()
-    {
-        $this->ensureStorageExists();
-
         $requirements = [
             'PHP >= 8.2' => version_compare(PHP_VERSION, '8.2.0', '>='),
             'PDO' => extension_loaded('pdo'),
@@ -43,72 +36,73 @@ class SystemCheckController extends Controller
 
         $allRequirementsMet = !in_array(false, $requirements, true);
 
-        return view('installer::installer.requirements', compact('requirements', 'allRequirementsMet'));
+        return view('installer::installer.welcome', compact('requirements', 'allRequirementsMet'));
     }
 
-    public function environment(Request $request)
+    public function dbForm()
     {
-        if ($request->isMethod('post')) {
-            $data = $request->validate([
-                'domain_name' => 'required|string|max:255',
-                'codecanyon_username' => 'required|string|max:255',
-                'codecanyon_license_key' => 'required|string|max:255',
-                'app_name' => 'required|string|max:255',
-                'app_url' => 'required|url',
-                'db_host' => 'required|string',
-                'db_port' => 'required|numeric',
-                'db_database' => 'required|string',
-                'db_username' => 'required|string',
-                'db_password' => 'nullable|string',
+
+        return view('installer::installer.requirements');
+    }
+
+    public function environmentSet(Request $request)
+    {
+
+        $data = $request->validate([
+            'domain_name' => 'required|string|max:255',
+            'codecanyon_username' => 'required|string|max:255',
+            'codecanyon_license_key' => 'required|string|max:255',
+            'app_name' => 'required|string|max:255',
+            'db_host' => 'required|string',
+            'db_port' => 'required|numeric',
+            'db_database' => 'required|string',
+            'db_username' => 'required|string',
+            'db_password' => 'nullable|string',
+        ]);
+
+        $envData = [
+            'DB_CONNECTION' => 'mysql',
+            'DB_HOST' => $data['db_host'],
+            'DB_PORT' => $data['db_port'],
+            'DB_DATABASE' => $data['db_database'],
+            'DB_USERNAME' => $data['db_username'],
+            'DB_PASSWORD' => $data['db_password'] ?? '',
+            'APP_DB' => 'true',
+            'APP_NAME' => $data['app_name'],
+            'APP_URL' => $data['application_url'],
+            'CODECANYON_USERNAME' => $data['codecanyon_username'],
+            'CODECANYON_LICENSE' => $data['codecanyon_license_key'],
+        ];
+
+        try {
+            $this->ensureEnv();
+            $this->setEnv($envData);
+
+            Artisan::call('config:clear');
+            Artisan::call('cache:clear');
+            Artisan::call('route:clear');
+
+            // Test DB connection
+            config([
+                'database.default' => 'mysql',
+                'database.connections.mysql.host' => $envData['DB_HOST'],
+                'database.connections.mysql.port' => $envData['DB_PORT'],
+                'database.connections.mysql.database' => $envData['DB_DATABASE'],
+                'database.connections.mysql.username' => $envData['DB_USERNAME'],
+                'database.connections.mysql.password' => $envData['DB_PASSWORD'],
             ]);
 
-            $envData = [
-                'DB_CONNECTION' => 'mysql',
-                'DB_HOST' => $data['db_host'],
-                'DB_PORT' => $data['db_port'],
-                'DB_DATABASE' => $data['db_database'],
-                'DB_USERNAME' => $data['db_username'],
-                'DB_PASSWORD' => $data['db_password'] ?? '',
-                'APP_DB' => 'true',
-                'APP_URL' => $data['domain_name'],
-                'CODECANYON_USERNAME' => $data['codecanyon_username'],
-                'CODECANYON_LICENSE' => $data['codecanyon_license_key'],
-            ];
+            Log::info('Database connection test successful', ['host' => $envData['DB_HOST'], 'database' => $envData['DB_DATABASE']]);
 
-            try {
-                $this->ensureEnv();
-                $this->setEnv($envData);
+            $request->session()->put('installer_data', $envData);
 
-                // Clear caches
-                Artisan::call('config:clear');
-                Artisan::call('cache:clear');
-                Artisan::call('route:clear');
+            return redirect()->route('install.admin.form')->with('success', 'Environment settings saved successfully.');
+        } catch (Exception $e) {
 
-                // Test DB connection
-                config([
-                    'database.default' => 'mysql',
-                    'database.connections.mysql.host' => $envData['DB_HOST'],
-                    'database.connections.mysql.port' => $envData['DB_PORT'],
-                    'database.connections.mysql.database' => $envData['DB_DATABASE'],
-                    'database.connections.mysql.username' => $envData['DB_USERNAME'],
-                    'database.connections.mysql.password' => $envData['DB_PASSWORD'],
-                ]);
-
-                DB::purge('mysql');
-                DB::connection('mysql')->getPdo();
-
-                Log::info('Database connection test successful', ['host' => $envData['DB_HOST'], 'database' => $envData['DB_DATABASE']]);
-
-                $request->session()->put('installer_data', $envData);
-
-                return redirect()->route('install.database');
-            } catch (Exception $e) {
-                Log::error('Environment setup failed: ' . $e->getMessage());
-                return back()->with('error', $e->getMessage())->withInput();
-            }
+            Log::error('Environment setup failed: ' . $e->getMessage());
+            return back()->with('error', $e->getMessage())->withInput();
         }
 
-        return view('installer::installer.environment');
     }
 
     public function database(Request $request)
@@ -119,8 +113,6 @@ class SystemCheckController extends Controller
             Log::warning('No installer data found in session, redirecting to environment');
             return redirect()->route('install.environment');
         }
-
-        Log::info('Processing database setup with session data', $data);
 
         return view('installer::installer.database');
     }
@@ -233,14 +225,20 @@ class SystemCheckController extends Controller
         ];
 
         foreach ($paths as $path) {
-            if (!File::exists($path)) File::makeDirectory($path, 0775, true);
+            if (!File::exists($path)) {
+                File::makeDirectory($path, 0775, true);
+            }
             $gitignore = $path . '/.gitignore';
-            if (!File::exists($gitignore)) File::put($gitignore, "*\n!.gitignore\n");
+            if (!File::exists($gitignore)) {
+                File::put($gitignore, "*\n!.gitignore\n");
+            }
             @chmod($path, 0775);
         }
 
         $logFile = storage_path('logs/laravel.log');
-        if (!File::exists($logFile)) File::put($logFile, '');
+        if (!File::exists($logFile)) {
+            File::put($logFile, '');
+        }
         chmod($logFile, 0666);
     }
 
@@ -268,7 +266,9 @@ class SystemCheckController extends Controller
 
     private function importSqlFile(string $filePath)
     {
-        if (!File::exists($filePath)) throw new Exception("SQL file not found");
+        if (!File::exists($filePath)) {
+            throw new Exception("SQL file not found");
+        }
 
         $handle = fopen($filePath, 'r');
         $sql = '';
@@ -277,7 +277,9 @@ class SystemCheckController extends Controller
         while (($line = fgets($handle)) !== false) {
             $lineNumber++;
             $trimmedLine = trim($line);
-            if ($trimmedLine === '' || str_starts_with($trimmedLine, ['--','#','/*'])) continue;
+            if ($trimmedLine === '' || str_starts_with($trimmedLine, ['--','#','/*'])) {
+                continue;
+            }
 
             $sql .= $line;
             if (substr(rtrim($line), -1) === ';') {
