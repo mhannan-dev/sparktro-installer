@@ -21,7 +21,7 @@
   "extra": {
     "laravel": {
       "providers": [
-        "Sparktro\\Installer\\SparkTroInstallerServiceProvider"
+        "Sparktro\\Installer\\SystemServiceProvider"
       ]
     }
   },
@@ -34,5 +34,5 @@
   ],
   "minimum-stability": "dev",
   "prefer-stable": true,
-  "version": "v9.1"
+  "version": "v9.2"
 }
