@@ -1,6 +1,6 @@
 <?php
 
-namespace Sparktro\Installer\Middleware;
+namespace Sparktro\Ignite\Middleware;
 
 use Closure;
 use Illuminate\Http\Request;

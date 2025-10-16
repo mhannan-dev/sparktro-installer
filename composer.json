@@ -11,7 +11,7 @@
   ],
   "autoload": {
     "psr-4": {
-      "Sparktro\\Installer\\": "src/"
+      "Sparktro\\Ignite\\": "src/"
     }
   },
   "require": {
@@ -21,7 +21,7 @@
   "extra": {
     "laravel": {
       "providers": [
-        "Sparktro\\Installer\\SystemServiceProvider"
+        "Sparktro\\Ignite\\SystemServiceProvider"
       ]
     }
   },
